@@ -1,0 +1,33 @@
+project:
+  name: graph-based-latent-relation-mining-system
+  description: Lightweight graph topology inference with embeddings and graph algorithms.
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  supported_ogb_datasets:
+    - ogbl-collab
+    - ogbl-ppa
+    - ogbl-citation2
+
+embedding:
+  provider: mock
+  dimension: 8
+  api_endpoint: null
+
+graph:
+  similarity_threshold: 0.94
+  top_k: null
+  edge_weight_attr: weight
+
+algorithms:
+  link_prediction:
+    - adamic_adar
+    - jaccard
+    - resource_allocation
+  community_detection: louvain
+  shortest_path: true
+
+llm_explanation:
+  enabled: false
+  provider: optional_api
