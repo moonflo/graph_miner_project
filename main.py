@@ -5,19 +5,6 @@ from __future__ import annotations
 from math import log, sqrt
 
 
-def mock_embedding_placeholder() -> list[list[float]]:
-    """Return small fixed vectors that mimic an embedding API response."""
-
-    return [
-        [1.00, 0.00, 0.00],
-        [0.96, 0.28, 0.00],
-        [0.86, 0.51, 0.00],
-        [0.00, 1.00, 0.00],
-        [0.25, 0.97, 0.00],
-        [0.10, 0.99, 0.00],
-    ]
-
-
 def main() -> None:
     entities = [
         {"id": "Alice", "text": "Graph mining and entity relation analysis"},
@@ -28,13 +15,19 @@ def main() -> None:
         {"id": "Fiona", "text": "Pathway relationship mining"},
     ]
 
-    embeddings = mock_embedding_placeholder()
+    from utils.embedder import Embedder
+    from utils.llm_client import LLMClient
+
+    embeddings = Embedder(provider="mock", mock_dimension=8).embed(
+        [entity["text"] for entity in entities]
+    )
+    demo_threshold = 0.25
 
     try:
         from src.graph_algorithms import adamic_adar_predictions, detect_louvain_communities
         from src.graph_builder import build_cosine_similarity_graph
 
-        graph, _ = build_cosine_similarity_graph(entities, embeddings, threshold=0.94)
+        graph, _ = build_cosine_similarity_graph(entities, embeddings, threshold=demo_threshold)
         predictions = adamic_adar_predictions(graph, top_n=5)
         communities = detect_louvain_communities(graph)
 
@@ -46,7 +39,7 @@ def main() -> None:
             print(f"{source} -- {target} | similarity={data['weight']:.3f}")
 
     except ModuleNotFoundError:
-        nodes, edges, adjacency = build_fallback_graph(entities, embeddings, threshold=0.94)
+        nodes, edges, adjacency = build_fallback_graph(entities, embeddings, threshold=demo_threshold)
         predictions = fallback_adamic_adar(adjacency, top_n=5)
         communities = fallback_communities(adjacency)
 
@@ -64,6 +57,14 @@ def main() -> None:
     print("\nCommunities:")
     for index, community in enumerate(communities, start=1):
         print(f"Community {index}: {sorted(community)}")
+
+    explanation_client = LLMClient()
+    print("\nLLM explanation layer:")
+    print(
+        explanation_client.generate(
+            "Explain that this demo keeps LLM usage optional and separate from graph analysis."
+        )
+    )
 
 
 def build_fallback_graph(

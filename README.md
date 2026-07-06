@@ -103,6 +103,11 @@ graph_mining_project/
 │   ├── graph_algorithms.py
 │   ├── llm_explainer.py
 │   ├── evaluator.py
+├── utils/
+│   ├── data_utils.py
+│   ├── download_datasets.py
+│   ├── embedder.py
+│   ├── llm_client.py
 ├── data/
 │   ├── raw/
 │   ├── processed/
@@ -122,6 +127,12 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+If you use the provided conda environment locally, activate it first:
+
+```bash
+conda activate graph-miner
+```
+
 Run the demo:
 
 ```bash
@@ -135,6 +146,46 @@ The demo will:
 - Build a cosine similarity graph.
 - Run Adamic-Adar link prediction.
 - Print detected communities.
+
+Load an OGB evaluation dataset:
+
+```bash
+python -m utils.download_datasets ogbl-collab --negative-samples 100
+```
+
+The OGB loader is evaluation-only. It downloads the dataset through OGB,
+standardizes edge splits into numpy arrays, and does not introduce a GNN
+training pipeline.
+
+Download all supported OGB evaluation datasets manually:
+
+```bash
+conda activate graph-miner
+python -m utils.download_datasets ogbl-collab --negative-samples 5
+python -m utils.download_datasets ogbl-ppa --negative-samples 5
+python -m utils.download_datasets ogbl-citation2 --negative-samples 5
+```
+
+You can also request every supported dataset in one command:
+
+```bash
+python -m utils.download_datasets --all --negative-samples 5
+```
+
+The datasets are cached under `data/raw/` and are ignored by Git. Approximate
+download sizes:
+
+- `ogbl-collab`: about 0.11 GB
+- `ogbl-ppa`: about 0.38 GB
+- `ogbl-citation2`: about 2.14 GB
+
+To verify local cached datasets without generating extra negatives, run:
+
+```bash
+python -m utils.download_datasets ogbl-collab
+python -m utils.download_datasets ogbl-ppa
+python -m utils.download_datasets ogbl-citation2
+```
 
 ## Main Components
 
@@ -172,6 +223,40 @@ The demo will:
 
 - Provides simple link prediction metrics for ground truth evaluation.
 - Intended for OGB evaluation splits or custom labeled edge sets.
+
+`utils/data_utils.py`
+
+- Loads supported OGB link prediction datasets:
+  - `ogbl-collab`
+  - `ogbl-ppa`
+  - `ogbl-citation2`
+- Returns standardized numpy outputs:
+  - `edge_index`
+  - `node_features`
+  - `num_nodes`
+  - `train_edges`
+  - `valid_edges`
+  - `test_edges`
+- Provides edge masking and negative sampling for evaluation.
+
+`utils/download_datasets.py`
+
+- Provides a dedicated dataset download and verification CLI.
+- Keeps OGB data preparation out of `main.py`.
+
+`utils/embedder.py`
+
+- Provides a unified `Embedder` interface:
+  - `embed(text: str | list[str]) -> np.ndarray`
+- Supports deterministic mock embeddings for local demos.
+- Supports HTTP embedding APIs with batch requests and simple retry.
+
+`utils/llm_client.py`
+
+- Provides an optional `LLMClient` interface:
+  - `generate(prompt: str) -> str`
+- Intended only for natural-language interpretation of graph-derived results,
+  such as community, path, or link reasoning explanations.
 
 ## Future Work
 
