@@ -98,6 +98,11 @@ The system favors interpretability, inspectable graph structure, and simple topo
 graph_mining_project/
 ├── src/
 │   ├── data_loader.py
+│   ├── preprocess/
+│   │   ├── data_loader.py
+│   │   ├── normalizer.py
+│   │   ├── schema.py
+│   │   ├── preprocess.py
 │   ├── embedder.py
 │   ├── graph_builder.py
 │   ├── graph_algorithms.py
@@ -111,8 +116,11 @@ graph_mining_project/
 ├── data/
 │   ├── raw/
 │   ├── processed/
+├── processed/
 ├── configs/
 │   ├── config.yaml
+├── tests/
+│   ├── test_preprocess_smoke.py
 ├── main.py
 ├── requirements.txt
 ├── README.md
@@ -187,6 +195,39 @@ python -m utils.download_datasets ogbl-ppa
 python -m utils.download_datasets ogbl-citation2
 ```
 
+Preprocess raw datasets into graph-construction inputs:
+
+```bash
+python -m src.preprocess.preprocess --input data/raw/ogbl_collab --output data/processed
+```
+
+The preprocessor intentionally handles one dataset per run. To process another
+dataset, run the command again with that dataset directory, for example
+`data/raw/ogbl_collab` or `data/raw/ogbl_ppa`. Passing a parent directory such
+as `data/` or `data/raw/` is rejected to keep preprocessing explicit.
+
+This writes:
+
+```text
+processed/<dataset_name>/
+  documents.jsonl
+  entities.jsonl
+  relations.jsonl
+  triples.jsonl
+  graph_nodes.jsonl
+  graph_edges.jsonl
+  stats.json
+```
+
+The preprocessing layer supports one JSON, JSONL, CSV, TXT file, one generic
+dataset directory, or one OGB link-prediction cache directory such as
+`data/raw/ogbl_citation2`. It normalizes raw samples into documents, explicit
+entity/relation tables, simplified triples, and graph-ready node/edge files. If
+a raw dataset has only text and no entity or relation annotations, the entity,
+relation, triple, node, and edge files can be empty; that is expected until a
+rule-based extractor or LLM extractor is connected. See
+`graph_mining_docs/preprocessing_layer.md` for the file contracts.
+
 ## Main Components
 
 `src/data_loader.py`
@@ -238,6 +279,14 @@ python -m utils.download_datasets ogbl-citation2
   - `valid_edges`
   - `test_edges`
 - Provides edge masking and negative sampling for evaluation.
+
+`src/preprocess/preprocess.py`
+
+- Converts raw JSON, JSONL, CSV, TXT, or OGB cache files into stable
+  graph-construction inputs.
+- Writes `documents.jsonl`, `entities.jsonl`, `relations.jsonl`,
+  `triples.jsonl`, `graph_nodes.jsonl`, `graph_edges.jsonl`, and `stats.json`.
+- Does not run graph algorithms or call LLM APIs.
 
 `utils/download_datasets.py`
 

@@ -19,5 +19,6 @@ ENV/
 
 data/raw/*
 data/processed/*
+processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
