@@ -7,3 +7,5 @@ pyvis
 ogb
 tqdm
 requests
+openai
+python-dotenv

@@ -103,11 +103,19 @@ graph_mining_project/
 │   │   ├── normalizer.py
 │   │   ├── schema.py
 │   │   ├── preprocess.py
+│   ├── llm/
+│   │   ├── client.py
+│   │   ├── extractor.py
+│   │   ├── json_utils.py
+│   │   ├── prompts.py
+│   │   ├── schema.py
 │   ├── embedder.py
 │   ├── graph_builder.py
 │   ├── graph_algorithms.py
 │   ├── llm_explainer.py
 │   ├── evaluator.py
+├── scripts/
+│   ├── run_llm_extract.py
 ├── utils/
 │   ├── data_utils.py
 │   ├── download_datasets.py
@@ -120,6 +128,7 @@ graph_mining_project/
 ├── configs/
 │   ├── config.yaml
 ├── tests/
+│   ├── test_llm_extraction_smoke.py
 │   ├── test_preprocess_smoke.py
 ├── main.py
 ├── requirements.txt
@@ -228,6 +237,33 @@ relation, triple, node, and edge files can be empty; that is expected until a
 rule-based extractor or LLM extractor is connected. See
 `graph_mining_docs/preprocessing_layer.md` for the file contracts.
 
+Optionally run LLM extraction after preprocessing a custom text dataset:
+
+```bash
+python scripts/run_llm_extract.py \
+  --input data/processed/<dataset_name>/documents.jsonl \
+  --output-dir data/processed/<dataset_name> \
+  --mock \
+  --limit 10
+```
+
+This writes raw extraction files:
+
+```text
+data/processed/<dataset_name>/
+  llm_extractions.jsonl
+  entities.raw.jsonl
+  relations.raw.jsonl
+  triples.raw.jsonl
+  llm_extract_stats.json
+```
+
+The LLM extraction layer is optional and is intended for future custom
+unstructured text data. It is not part of the OGB structure-graph preprocessing
+flow, and it does not generate `graph_nodes.jsonl` or `graph_edges.jsonl`
+directly. See `graph_mining_docs/llm_extraction_layer.md` for configuration,
+dry-run, mock, resume, and small real-call examples.
+
 ## Main Components
 
 `src/data_loader.py`
@@ -287,6 +323,21 @@ rule-based extractor or LLM extractor is connected. See
 - Writes `documents.jsonl`, `entities.jsonl`, `relations.jsonl`,
   `triples.jsonl`, `graph_nodes.jsonl`, `graph_edges.jsonl`, and `stats.json`.
 - Does not run graph algorithms or call LLM APIs.
+
+`src/llm/`
+
+- Provides an optional LLM extraction scaffold for future custom text datasets.
+- Consumes processed `documents.jsonl` and writes raw extraction outputs.
+- Uses an OpenAI-compatible Chat Completions API through configurable
+  `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL`.
+- Includes conservative JSON parsing and a mock client for local smoke tests.
+
+`scripts/run_llm_extract.py`
+
+- Runs optional LLM extraction from `documents.jsonl`.
+- Supports `--dry-run`, `--mock`, `--limit`, `--resume`, `--sleep`, `--model`,
+  `--text-max-chars`, and raw response controls.
+- Keeps LLM extraction separate from OGB preprocessing and graph algorithms.
 
 `utils/download_datasets.py`
 

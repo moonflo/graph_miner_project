@@ -94,6 +94,13 @@ text, but they do include node mappings and edge CSV files. The preprocessor
 therefore emits empty `documents.jsonl` and graph-ready entities, relations,
 nodes, and edges from the OGB cache.
 
+Optional LLM extraction is handled after this layer by
+`scripts/run_llm_extract.py`. It consumes `documents.jsonl` for future custom
+text datasets and writes raw files such as `llm_extractions.jsonl`,
+`entities.raw.jsonl`, `relations.raw.jsonl`, and `triples.raw.jsonl`. It is not
+called by `python -m src.preprocess.preprocess`, and it is not needed for OGB
+structure-graph datasets. See `graph_mining_docs/llm_extraction_layer.md`.
+
 ## Downstream Graph Construction
 
 The graph construction layer should read:
