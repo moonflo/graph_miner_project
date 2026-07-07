@@ -27,6 +27,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.graph.dataset_registry import get_dataset_config, list_supported_datasets
+
 DATA_ROOT = PROJECT_ROOT / "data"
 RAW_ROOT = DATA_ROOT / "raw"
 PROCESSED_ROOT = DATA_ROOT / "processed"
@@ -428,14 +430,14 @@ def compare_counts(report: DatasetReport) -> None:
             )
 
 
-def discover_processed_datasets() -> list[Path]:
+def configured_processed_datasets() -> list[Path]:
     if not PROCESSED_ROOT.exists():
         return []
-    return sorted(
-        path
-        for path in PROCESSED_ROOT.iterdir()
-        if path.is_dir() and path.name.startswith("ogbl")
-    )
+    dataset_dirs = []
+    for dataset_name in list_supported_datasets():
+        config = get_dataset_config(dataset_name)
+        dataset_dirs.append(PROCESSED_ROOT / config.processed_dir_name)
+    return dataset_dirs
 
 
 def read_gzip_scalar(path: Path) -> int | None:
@@ -939,7 +941,7 @@ def build_report(datasets: list[DatasetReport], sample_size: int) -> str:
     if not RAW_ROOT.exists():
         blocking.append("`data/raw/` directory is missing.")
     if len(datasets) < 3:
-        warnings.append(f"Expected three OGB processed datasets, discovered {len(datasets)}.")
+        warnings.append(f"Expected three registry OGB datasets, configured {len(datasets)}.")
 
     for dataset in datasets:
         missing = [name for name in EXPECTED_FILES if not dataset.file_checks.get(name, FileCheck(name, False)).exists]
@@ -989,8 +991,8 @@ def build_report(datasets: list[DatasetReport], sample_size: int) -> str:
         "",
         "## 1. Summary",
         "",
-        f"- Discovered `data/`: {'yes' if DATA_ROOT.exists() else 'no'}; `data/raw/`: {'yes' if RAW_ROOT.exists() else 'no'}; `data/processed/`: {'yes' if PROCESSED_ROOT.exists() else 'no'}.",
-        f"- Discovered processed OGB datasets: {', '.join(dataset.name for dataset in datasets) or 'none'}.",
+        f"- Found `data/`: {'yes' if DATA_ROOT.exists() else 'no'}; `data/raw/`: {'yes' if RAW_ROOT.exists() else 'no'}; `data/processed/`: {'yes' if PROCESSED_ROOT.exists() else 'no'}.",
+        f"- Registry processed OGB datasets: {', '.join(dataset.name for dataset in datasets) or 'none'}.",
         f"- File integrity blockers: {len(blocking)}.",
         f"- Overall recommendation: {recommendation}",
         "",
@@ -1070,7 +1072,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    dataset_dirs = discover_processed_datasets()
+    dataset_dirs = configured_processed_datasets()
     reports = [validate_dataset(path, args.sample_size) for path in dataset_dirs]
     report_text = build_report(reports, args.sample_size)
     args.report.parent.mkdir(parents=True, exist_ok=True)

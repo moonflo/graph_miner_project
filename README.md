@@ -109,6 +109,18 @@ graph_mining_project/
 │   │   ├── json_utils.py
 │   │   ├── prompts.py
 │   │   ├── schema.py
+│   ├── graph/
+│   │   ├── candidates.py
+│   │   ├── dataset_registry.py
+│   │   ├── graph_factory.py
+│   │   ├── graph_stats.py
+│   │   ├── ogb_split_loader.py
+│   │   ├── processed_loader.py
+│   │   ├── schemas.py
+│   ├── algorithms/
+│   │   ├── link_prediction.py
+│   │   ├── scoring.py
+│   │   ├── evaluation.py
 │   ├── embedder.py
 │   ├── graph_builder.py
 │   ├── graph_algorithms.py
@@ -116,6 +128,9 @@ graph_mining_project/
 │   ├── evaluator.py
 ├── scripts/
 │   ├── run_llm_extract.py
+│   ├── smoke_graph_build.py
+│   ├── smoke_link_prediction.py
+│   ├── validate_processed_data.py
 ├── utils/
 │   ├── data_utils.py
 │   ├── download_datasets.py
@@ -215,6 +230,43 @@ dataset, run the command again with that dataset directory, for example
 `data/raw/ogbl_collab` or `data/raw/ogbl_ppa`. Passing a parent directory such
 as `data/` or `data/raw/` is rejected to keep preprocessing explicit.
 
+Smoke-test the graph building layer on local real data:
+
+```bash
+python scripts/smoke_graph_build.py \
+  --processed-root data/processed \
+  --raw-root data/raw \
+  --limit-edges 5000
+```
+
+The graph building layer uses a manual registry in
+`src/graph/dataset_registry.py`. It currently supports only `ogbl_citation2`,
+`ogbl_collab`, and `ogbl_ppa`; it does not scan `data/processed/` to auto-add
+new datasets. For formal OGB metrics, build the visible graph from official
+`train_edges` and evaluate with official `valid/test` positive and negative
+candidate edges. Do not randomly split `processed/graph_edges.jsonl`.
+
+See `graph_mining_docs/graph_building_layer.md` for registry rules, processed
+vs official split boundaries, `ogbl_citation2` directed handling, `ogbl_collab`
+aggregation notes, and candidate-limited evaluation guidance.
+
+Smoke-test the classical link prediction layer:
+
+```bash
+python scripts/smoke_link_prediction.py \
+  --raw-root data/raw \
+  --split valid \
+  --limit-pos 100 \
+  --limit-neg-per-pos 100
+```
+
+This layer lives in `src/algorithms/` and uses NetworkX topology baselines:
+Jaccard, Adamic-Adar, Resource Allocation, and Preferential Attachment. It
+builds the visible graph from official train edges only and scores valid/test
+candidates without enumerating all non-edges. See
+`graph_mining_docs/link_prediction_layer.md` for the OGB metric mapping and the
+smoke-vs-formal evaluation boundary.
+
 This writes:
 
 ```text
@@ -282,6 +334,15 @@ dry-run, mock, resume, and small real-call examples.
 - Stores entity text as node attributes.
 - Stores cosine similarity as edge weight.
 
+`src/graph/`
+
+- Defines the explicit dataset registry for `ogbl_citation2`, `ogbl_collab`,
+  and `ogbl_ppa`.
+- Streams processed `graph_nodes.jsonl`, `graph_edges.jsonl`, and `stats.json`.
+- Loads official OGB train/valid/test splits without triggering downloads.
+- Builds NetworkX graphs from processed samples or official train splits.
+- Provides candidate-limited evaluation inputs and lightweight graph stats.
+
 `src/graph_algorithms.py`
 
 - Runs graph topology algorithms:
@@ -338,6 +399,12 @@ dry-run, mock, resume, and small real-call examples.
 - Supports `--dry-run`, `--mock`, `--limit`, `--resume`, `--sleep`, `--model`,
   `--text-max-chars`, and raw response controls.
 - Keeps LLM extraction separate from OGB preprocessing and graph algorithms.
+
+`scripts/smoke_graph_build.py`
+
+- Builds small processed and train-visible graphs from the manual registry.
+- Prints basic stats and valid/test candidate shapes.
+- Does not run full graph algorithms or enumerate all non-edges.
 
 `utils/download_datasets.py`
 
