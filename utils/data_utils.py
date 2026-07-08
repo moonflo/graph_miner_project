@@ -69,6 +69,8 @@ def load_dataset(
     train_edges = _positive_edges_from_split(split_edge["train"])
     valid_edges = _positive_edges_from_split(split_edge["valid"])
     test_edges = _positive_edges_from_split(split_edge["test"])
+    train_edge_weight = _optional_float_vector_from_split(split_edge["train"])
+    train_edge_year = _optional_int_vector_from_split(split_edge["train"])
 
     visible_train_edges = train_edges
     masked_edges = np.empty((0, 2), dtype=np.int64)
@@ -78,6 +80,8 @@ def load_dataset(
             mask_ratio=mask_ratio,
             seed=seed,
         )
+        train_edge_weight = None
+        train_edge_year = None
 
     data: dict[str, Any] = {
         "name": name,
@@ -87,7 +91,15 @@ def load_dataset(
         "train_edges": visible_train_edges,
         "valid_edges": valid_edges,
         "test_edges": test_edges,
+        "train_edge_weight": train_edge_weight,
+        "train_edge_year": train_edge_year,
+        "valid_edge_weight": _optional_float_vector_from_split(split_edge["valid"]),
+        "valid_edge_year": _optional_int_vector_from_split(split_edge["valid"]),
+        "test_edge_weight": _optional_float_vector_from_split(split_edge["test"]),
+        "test_edge_year": _optional_int_vector_from_split(split_edge["test"]),
         "masked_edges": masked_edges,
+        "valid_edge_neg": _edge_neg_raw_from_split(split_edge["valid"]),
+        "test_edge_neg": _edge_neg_raw_from_split(split_edge["test"]),
         "valid_negative_edges": _negative_edges_from_split(split_edge["valid"]),
         "test_negative_edges": _negative_edges_from_split(split_edge["test"]),
     }
@@ -264,7 +276,14 @@ def _positive_edges_from_split(split: dict[str, Any]) -> np.ndarray:
 
 def _negative_edges_from_split(split: dict[str, Any]) -> np.ndarray | None:
     if "edge_neg" in split:
-        return _as_edge_pairs(split["edge_neg"])
+        edge_neg = _edge_neg_raw_from_split(split)
+        if edge_neg is None:
+            return None
+        if edge_neg.ndim == 2:
+            return _as_edge_pairs(edge_neg)
+        if edge_neg.ndim == 3 and edge_neg.shape[-1] == 2:
+            return edge_neg.reshape(-1, 2).astype(np.int64, copy=False)
+        raise ValueError(f"edge_neg must end with edge pairs, got shape {edge_neg.shape}")
     if "source_node" not in split or "target_node_neg" not in split:
         return None
 
@@ -276,6 +295,42 @@ def _negative_edges_from_split(split: dict[str, Any]) -> np.ndarray | None:
 
     repeated_source = np.repeat(source, target_neg.shape[1])
     return np.column_stack((repeated_source, target_neg.reshape(-1)))
+
+
+def _edge_neg_raw_from_split(split: dict[str, Any]) -> np.ndarray | None:
+    if "edge_neg" not in split or split["edge_neg"] is None:
+        return None
+    array = np.asarray(_as_numpy(split["edge_neg"]), dtype=np.int64)
+    if array.ndim == 2:
+        if array.size == 0:
+            return np.empty((0, 2), dtype=np.int64)
+        return _as_edge_pairs(array)
+    if array.ndim == 3 and array.shape[-1] == 2:
+        return array
+    raise ValueError(
+        "edge_neg must have shape [num_neg, 2] or [num_pos, num_neg, 2], "
+        f"got {array.shape}"
+    )
+
+
+def _optional_float_vector_from_split(split: dict[str, Any]) -> np.ndarray | None:
+    return _optional_vector_from_split(split, ("weight", "edge_weight"), dtype=float)
+
+
+def _optional_int_vector_from_split(split: dict[str, Any]) -> np.ndarray | None:
+    return _optional_vector_from_split(split, ("year", "edge_year"), dtype=np.int64)
+
+
+def _optional_vector_from_split(
+    split: dict[str, Any],
+    keys: tuple[str, ...],
+    *,
+    dtype: Any,
+) -> np.ndarray | None:
+    for key in keys:
+        if key in split and split[key] is not None:
+            return np.asarray(_as_numpy(split[key]), dtype=dtype).reshape(-1)
+    return None
 
 
 def _infer_num_nodes(

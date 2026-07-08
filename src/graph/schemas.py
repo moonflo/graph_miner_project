@@ -72,6 +72,14 @@ class OGBSplitData:
     train_edges: np.ndarray
     valid_edges: np.ndarray
     test_edges: np.ndarray
+    train_edge_weight: np.ndarray | None = None
+    train_edge_year: np.ndarray | None = None
+    valid_edge_weight: np.ndarray | None = None
+    valid_edge_year: np.ndarray | None = None
+    test_edge_weight: np.ndarray | None = None
+    test_edge_year: np.ndarray | None = None
+    valid_edge_neg: np.ndarray | None = None
+    test_edge_neg: np.ndarray | None = None
     valid_neg_edges: np.ndarray | None = None
     test_neg_edges: np.ndarray | None = None
     valid_source_nodes: np.ndarray | None = None

@@ -64,6 +64,16 @@ def summarize_split(split_data: OGBSplitData) -> dict[str, Any]:
         "train_edges": _shape(split_data.train_edges),
         "valid_edges": _shape(split_data.valid_edges),
         "test_edges": _shape(split_data.test_edges),
+        "valid_edge_neg": _shape(split_data.valid_edge_neg),
+        "test_edge_neg": _shape(split_data.test_edge_neg),
+        "valid_official_negatives_available": _official_negatives_available(
+            split_data.valid_edge_neg
+        ),
+        "test_official_negatives_available": _official_negatives_available(
+            split_data.test_edge_neg
+        ),
+        "valid_official_negative_layout": _negative_layout(split_data.valid_edge_neg),
+        "test_official_negative_layout": _negative_layout(split_data.test_edge_neg),
         "valid_neg_edges": _shape(split_data.valid_neg_edges),
         "test_neg_edges": _shape(split_data.test_neg_edges),
         "valid_target_node_neg": _shape(split_data.valid_target_node_neg),
@@ -106,3 +116,18 @@ def _shape(value: Any) -> tuple[int, ...] | None:
     if shape is None:
         return None
     return tuple(int(item) for item in shape)
+
+
+def _official_negatives_available(value: Any) -> bool:
+    return value is not None and getattr(value, "ndim", 0) in {2, 3}
+
+
+def _negative_layout(value: Any) -> str:
+    if value is None:
+        return "none"
+    ndim = getattr(value, "ndim", None)
+    if ndim == 3:
+        return "per_positive"
+    if ndim == 2:
+        return "shared_pool"
+    return f"unsupported_{ndim}d"

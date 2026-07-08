@@ -26,6 +26,7 @@ from src.graph.graph_factory import (
     build_networkx_graph_from_train_split,
     infer_directed,
 )
+from src.graph import ogb_split_loader
 from src.graph.ogb_split_loader import load_ogb_split
 from src.graph.processed_loader import (
     load_graph_edges,
@@ -148,6 +149,34 @@ class GraphFactoryTest(unittest.TestCase):
         self.assertFalse(graph.has_edge(2, 3))
         self.assertEqual(graph.graph["edge_source"], "official train_edges")
 
+    def test_train_split_graph_merges_weight_and_year_for_duplicate_edges(self) -> None:
+        split = OGBSplitData(
+            dataset_name="ogbl_collab",
+            ogb_name="ogbl-collab",
+            num_nodes=4,
+            train_edges=np.asarray(
+                [[0, 1], [1, 0], [0, 1], [1, 2]],
+                dtype=np.int64,
+            ),
+            train_edge_weight=np.asarray([2.0, 3.0, 4.0, 5.0], dtype=float),
+            train_edge_year=np.asarray([2015, 2017, 2016, 2014], dtype=np.int64),
+            valid_edges=np.asarray([[0, 2]], dtype=np.int64),
+            test_edges=np.asarray([[0, 3]], dtype=np.int64),
+        )
+
+        with patch("src.graph.graph_factory.load_ogb_split", return_value=split):
+            graph = build_networkx_graph_from_train_split("ogbl_collab")
+
+        attrs = graph[0][1]
+        self.assertEqual(graph.number_of_edges(), 2)
+        self.assertEqual(attrs["weight"], 9.0)
+        self.assertEqual(attrs["edge_count"], 3)
+        self.assertEqual(attrs["min_year"], 2015)
+        self.assertEqual(attrs["max_year"], 2017)
+        self.assertTrue(graph.graph["has_edge_weight"])
+        self.assertTrue(graph.graph["has_edge_year"])
+        self.assertEqual(graph.graph["max_train_year"], 2017)
+
 
 class CandidatesTest(unittest.TestCase):
     def test_sample_non_edges_does_not_return_existing_edges(self) -> None:
@@ -190,6 +219,98 @@ class CandidatesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(FileNotFoundError, "Raw directory"):
                 load_ogb_split("ogbl_collab", Path(temp_dir) / "raw")
+
+    def test_manual_split_loader_preserves_weight_and_year_vectors(self) -> None:
+        train = {
+            "edge": np.asarray([[0, 1], [1, 2]], dtype=np.int64),
+            "weight": np.asarray([2.5, 3.5], dtype=float),
+            "year": np.asarray([2018, 2019], dtype=np.int64),
+        }
+        valid = {
+            "edge": np.asarray([[0, 2]], dtype=np.int64),
+            "edge_weight": np.asarray([4.5], dtype=float),
+            "edge_year": np.asarray([2020], dtype=np.int64),
+            "edge_neg": np.asarray([[2, 3]], dtype=np.int64),
+        }
+        test = {
+            "edge": np.asarray([[1, 3]], dtype=np.int64),
+            "weight": np.asarray([5.5], dtype=float),
+            "year": np.asarray([2021], dtype=np.int64),
+            "edge_neg": np.asarray(
+                [
+                    [[1, 4], [1, 5]],
+                    [[3, 4], [3, 5]],
+                ],
+                dtype=np.int64,
+            ),
+        }
+        split_files = {
+            "train": Path("train.pt"),
+            "valid": Path("valid.pt"),
+            "test": Path("test.pt"),
+        }
+
+        def fake_load(path: Path) -> dict:
+            return {"train.pt": train, "valid.pt": valid, "test.pt": test}[path.name]
+
+        with (
+            patch.object(ogb_split_loader, "_find_split_files", return_value=split_files),
+            patch.object(ogb_split_loader, "_read_num_nodes", return_value=4),
+            patch.object(ogb_split_loader, "_load_torch_split", side_effect=fake_load),
+        ):
+            split = ogb_split_loader._load_manual_split(
+                "ogbl_collab",
+                "ogbl-collab",
+                Path("unused"),
+            )
+
+        np.testing.assert_array_equal(split.train_edge_weight, np.asarray([2.5, 3.5]))
+        np.testing.assert_array_equal(split.train_edge_year, np.asarray([2018, 2019]))
+        np.testing.assert_array_equal(split.valid_edge_weight, np.asarray([4.5]))
+        np.testing.assert_array_equal(split.valid_edge_year, np.asarray([2020]))
+        np.testing.assert_array_equal(split.test_edge_weight, np.asarray([5.5]))
+        np.testing.assert_array_equal(split.test_edge_year, np.asarray([2021]))
+        self.assertEqual(split.test_edge_neg.shape, (2, 2, 2))
+        self.assertEqual(split.test_neg_edges.shape, (4, 2))
+
+    def test_split_loader_preserves_raw_3d_edge_neg_and_flattens_legacy_copy(self) -> None:
+        train = {"edge": np.asarray([[0, 1]], dtype=np.int64)}
+        valid = {
+            "edge": np.asarray([[0, 2], [1, 3]], dtype=np.int64),
+            "edge_neg": np.asarray(
+                [
+                    [[0, 4], [0, 5], [0, 6]],
+                    [[1, 4], [1, 5], [1, 6]],
+                ],
+                dtype=np.int64,
+            ),
+        }
+        test = {"edge": np.asarray([[2, 3]], dtype=np.int64)}
+        split_files = {
+            "train": Path("train.pt"),
+            "valid": Path("valid.pt"),
+            "test": Path("test.pt"),
+        }
+
+        def fake_load(path: Path) -> dict:
+            return {"train.pt": train, "valid.pt": valid, "test.pt": test}[path.name]
+
+        with (
+            patch.object(ogb_split_loader, "_find_split_files", return_value=split_files),
+            patch.object(ogb_split_loader, "_read_num_nodes", return_value=7),
+            patch.object(ogb_split_loader, "_load_torch_split", side_effect=fake_load),
+        ):
+            split = ogb_split_loader._load_manual_split(
+                "ogbl_collab",
+                "ogbl-collab",
+                Path("unused"),
+            )
+
+        candidates = candidates_from_split(split, "valid")
+
+        self.assertEqual(split.valid_edge_neg.shape, (2, 3, 2))
+        self.assertEqual(split.valid_neg_edges.shape, (6, 2))
+        self.assertEqual(candidates.negative_edges.shape, (6, 2))
 
 
 def make_processed_dataset(

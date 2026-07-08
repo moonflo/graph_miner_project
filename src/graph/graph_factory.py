@@ -107,13 +107,25 @@ def build_networkx_graph_from_train_split(
             "num_nodes_expected": split.num_nodes,
             "split_source": split.source,
             "include_isolated_nodes": include_isolated_nodes,
+            "has_edge_weight": split.train_edge_weight is not None,
+            "has_edge_year": split.train_edge_year is not None,
+            "max_train_year": _max_year(split.train_edge_year, limit_edges),
         }
     )
     if include_isolated_nodes:
         graph.add_nodes_from(range(split.num_nodes))
 
-    for source, target in _limited_edges(split.train_edges, limit_edges):
-        graph.add_edge(int(source), int(target), relation=config.edge_relation_name, weight=1.0)
+    for index, source, target in _limited_edges_with_index(split.train_edges, limit_edges):
+        weight = _edge_weight_at(split.train_edge_weight, index)
+        year = _edge_year_at(split.train_edge_year, index)
+        _add_or_merge_train_edge(
+            graph,
+            int(source),
+            int(target),
+            relation=config.edge_relation_name,
+            weight=weight,
+            year=year,
+        )
     return graph
 
 
@@ -162,6 +174,87 @@ def _limited_edges(edges: np.ndarray, limit: int | None) -> Iterable[tuple[int, 
     count = len(edges) if limit is None else min(limit, len(edges))
     for index in range(count):
         yield int(edges[index, 0]), int(edges[index, 1])
+
+
+def _limited_edges_with_index(
+    edges: np.ndarray,
+    limit: int | None,
+) -> Iterable[tuple[int, int, int]]:
+    count = len(edges) if limit is None else min(limit, len(edges))
+    for index in range(count):
+        yield index, int(edges[index, 0]), int(edges[index, 1])
+
+
+def _add_or_merge_train_edge(
+    graph: nx.Graph,
+    source: int,
+    target: int,
+    *,
+    relation: str,
+    weight: float,
+    year: int | None,
+) -> None:
+    if graph.has_edge(source, target):
+        attrs = graph[source][target]
+        attrs["weight"] = float(attrs.get("weight", 0.0)) + weight
+        attrs["edge_count"] = int(attrs.get("edge_count", 1)) + 1
+        attrs["min_year"] = _merge_min_year(attrs.get("min_year"), year)
+        attrs["max_year"] = _merge_max_year(attrs.get("max_year"), year)
+        attrs["relation"] = relation
+        return
+
+    graph.add_edge(
+        source,
+        target,
+        relation=relation,
+        weight=weight,
+        edge_count=1,
+        min_year=year,
+        max_year=year,
+    )
+
+
+def _edge_weight_at(values: np.ndarray | None, index: int) -> float:
+    if values is None or index >= len(values):
+        return 1.0
+    try:
+        return float(values[index])
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def _edge_year_at(values: np.ndarray | None, index: int) -> int | None:
+    if values is None or index >= len(values):
+        return None
+    try:
+        return int(values[index])
+    except (TypeError, ValueError):
+        return None
+
+
+def _max_year(values: np.ndarray | None, limit: int | None) -> int | None:
+    if values is None:
+        return None
+    bounded = values if limit is None else values[:limit]
+    if len(bounded) == 0:
+        return None
+    return int(np.max(bounded))
+
+
+def _merge_min_year(existing: Any, new_year: int | None) -> int | None:
+    if existing is None:
+        return new_year
+    if new_year is None:
+        return int(existing)
+    return min(int(existing), new_year)
+
+
+def _merge_max_year(existing: Any, new_year: int | None) -> int | None:
+    if existing is None:
+        return new_year
+    if new_year is None:
+        return int(existing)
+    return max(int(existing), new_year)
 
 
 def _node_id_from_node(node: GraphNode, node_id_mode: NodeIdMode) -> int | str:

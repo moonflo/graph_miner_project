@@ -114,6 +114,12 @@ def run_dataset_smoke(
         "train_edges",
         "valid_edges",
         "test_edges",
+        "valid_edge_neg",
+        "test_edge_neg",
+        "valid_official_negatives_available",
+        "test_official_negatives_available",
+        "valid_official_negative_layout",
+        "test_official_negative_layout",
         "valid_neg_edges",
         "test_neg_edges",
         "valid_target_node_neg",
@@ -156,6 +162,8 @@ def shape(value: Any) -> tuple[int, ...] | None:
 def format_value(value: Any) -> str:
     if value is None:
         return "N/A"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
     if isinstance(value, tuple):
         return "x".join(f"{item:,}" for item in value)
     if isinstance(value, int):

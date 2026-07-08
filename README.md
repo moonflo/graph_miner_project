@@ -260,12 +260,118 @@ python scripts/smoke_link_prediction.py \
   --limit-neg-per-pos 100
 ```
 
-This layer lives in `src/algorithms/` and uses NetworkX topology baselines:
-Jaccard, Adamic-Adar, Resource Allocation, and Preferential Attachment. It
-builds the visible graph from official train edges only and scores valid/test
-candidates without enumerating all non-edges. See
-`graph_mining_docs/link_prediction_layer.md` for the OGB metric mapping and the
-smoke-vs-formal evaluation boundary.
+The smoke default is intentionally not the full valid/test split. If
+`--full-positive-split` is not passed, `--limit-pos` controls how many positive
+edges are scored, and its default `100` is only a small smoke-test value.
+`--limit-neg-per-pos` is a negative-sample budget multiplier; for OGB splits
+with a global official negative pool, the actual negative count is capped by
+the available official negatives. For example, `--limit-pos 20000
+--limit-neg-per-pos 100` requests 2,000,000 negatives, but `ogbl-collab`
+valid/test may expose fewer official negatives. The smoke output reports
+`requested_neg`, `available_neg`, `used_neg`, and `neg_truncated`; report
+actual `pos/neg` counts in experiment notes instead of only the CLI flags. It
+is a candidate-limited legacy smoke test and is not directly comparable with
+the OGB leaderboard.
+
+Quick `ogbl-collab` smoke for the current weighted/time-aware run:
+
+```bash
+python scripts/smoke_link_prediction.py \
+  --raw-root data/raw \
+  --datasets ogbl_collab \
+  --split valid \
+  --limit-pos 1000 \
+  --limit-neg-per-pos 100 \
+  --full-train-graph \
+  --methods all \
+  --decay 0.8
+```
+
+Use the full positive valid/test split intentionally:
+
+```bash
+python scripts/smoke_link_prediction.py \
+  --raw-root data/raw \
+  --datasets ogbl_collab \
+  --split valid \
+  --full-positive-split \
+  --limit-neg-per-pos 100 \
+  --full-train-graph \
+  --methods all \
+  --decay 0.8
+```
+
+Run OGB Evaluator-backed official mode for leaderboard-aligned `ogbl-collab`
+Hits@50:
+
+```bash
+python scripts/eval_ogb_official.py \
+  --raw-root data/raw \
+  --dataset ogbl_collab \
+  --split valid \
+  --methods adamic_adar resource_allocation time_decay_common_neighbors time_decay_resource_allocation \
+  --decay 0.8 \
+  --full-train-graph \
+  --output reports/ogb_official_valid.md \
+  --csv-output reports/ogb_official_valid.csv
+```
+
+Use official mode for formal reports. It preserves raw `edge_neg` shape,
+reports whether negatives are per-positive or a shared OGB pool, calls
+`ogb.linkproppred.Evaluator(name="ogbl-collab")`, and writes Markdown plus CSV.
+Use `scripts/smoke_link_prediction.py` only for quick development and method
+trend checks. See `graph_mining_docs/ogb_official_evaluation.md` for the full
+valid/test commands, shape expectations, and Adamic-Adar sanity check.
+
+Run the repeatable `ogbl-collab` experiment grid and save CSV/Markdown reports:
+
+```bash
+python scripts/run_collab_experiments.py \
+  --raw-root data/raw \
+  --split valid \
+  --output-dir reports/collab_experiments \
+  --full-train-graph
+```
+
+Run only the scale sweep:
+
+```bash
+python scripts/run_collab_experiments.py \
+  --raw-root data/raw \
+  --split valid \
+  --output-dir reports/collab_experiments_scale \
+  --skip-decay-sweep \
+  --positive-limits 1000 5000 10000 20000 \
+  --neg-per-pos 100 \
+  --full-train-graph
+```
+
+Append one full-positive split run to the scale sweep:
+
+```bash
+python scripts/run_collab_experiments.py \
+  --raw-root data/raw \
+  --split valid \
+  --output-dir reports/collab_experiments_full \
+  --include-full-positive \
+  --full-train-graph
+```
+
+The experiment runner writes `collab_experiments.csv`,
+`collab_experiments.md`, and `collab_best_summary.md` under `--output-dir`.
+It directly reuses the classical scoring API, does not shell out to the smoke
+script, and does not introduce neural networks, GNNs, or re-rankers.
+
+This layer lives in `src/algorithms/` and uses candidate-limited classical
+topology baselines. The original Jaccard, Adamic-Adar, Resource Allocation, and
+Preferential Attachment methods remain the default smoke methods. For
+`ogbl-collab`, explicit `--methods all` also runs common-neighbor,
+weighted, and time-decay variants that use official split `weight` and `year`
+when present. The visible graph is still built from official train edges only,
+and valid/test candidates are scored without enumerating all non-edges. See
+`graph_mining_docs/link_prediction_layer.md` for the OGB metric mapping and
+`graph_mining_docs/collab_weighted_time_aware_lp.md` for the collab-focused
+weighted/time-aware methods.
 
 This writes:
 
@@ -342,6 +448,8 @@ dry-run, mock, resume, and small real-call examples.
 - Loads official OGB train/valid/test splits without triggering downloads.
 - Builds NetworkX graphs from processed samples or official train splits.
 - Provides candidate-limited evaluation inputs and lightweight graph stats.
+- Preserves `ogbl-collab` split edge `weight` and `year` when present and
+  summarizes duplicate train edges with weight sums and min/max years.
 
 `src/graph_algorithms.py`
 

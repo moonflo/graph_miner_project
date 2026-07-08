@@ -45,6 +45,8 @@ def load_ogb_split(
             f"Manual split loading failed with {type(manual_exc).__name__}: "
             f"{manual_exc}. Fell back to utils.data_utils.load_dataset."
         )
+        if fallback.notes:
+            notes = f"{notes} {fallback.notes}"
         return _replace_notes(fallback, notes)
 
 
@@ -89,9 +91,35 @@ def _load_with_project_loader(
         train_edges=normalize_edge_array(data["train_edges"]),
         valid_edges=normalize_edge_array(data["valid_edges"]),
         test_edges=normalize_edge_array(data["test_edges"]),
-        valid_neg_edges=_optional_edge_array(data.get("valid_negative_edges")),
-        test_neg_edges=_optional_edge_array(data.get("test_negative_edges")),
+        train_edge_weight=_optional_float_vector(data.get("train_edge_weight")),
+        train_edge_year=_optional_int_vector(data.get("train_edge_year")),
+        valid_edge_weight=_optional_float_vector(data.get("valid_edge_weight")),
+        valid_edge_year=_optional_int_vector(data.get("valid_edge_year")),
+        test_edge_weight=_optional_float_vector(data.get("test_edge_weight")),
+        test_edge_year=_optional_int_vector(data.get("test_edge_year")),
+        valid_edge_neg=_optional_edge_neg_raw(
+            data.get(
+                "valid_edge_neg",
+                data.get("valid_negative_edges_raw", data.get("valid_negative_edges")),
+            )
+        ),
+        test_edge_neg=_optional_edge_neg_raw(
+            data.get(
+                "test_edge_neg",
+                data.get("test_negative_edges_raw", data.get("test_negative_edges")),
+            )
+        ),
+        valid_neg_edges=_optional_flat_edge_neg(
+            data.get("valid_edge_neg", data.get("valid_negative_edges"))
+        ),
+        test_neg_edges=_optional_flat_edge_neg(
+            data.get("test_edge_neg", data.get("test_negative_edges"))
+        ),
         source="utils.data_utils.load_dataset",
+        notes=(
+            "Project loader fallback preserves split edge weight/year when the "
+            "underlying OGB split exposes those attributes; otherwise they stay None."
+        ),
     )
 
 
@@ -112,6 +140,8 @@ def _load_manual_split(
     test_target_nodes = _optional_vector(test.get("target_node"))
     valid_target_node_neg = _optional_matrix(valid.get("target_node_neg"))
     test_target_node_neg = _optional_matrix(test.get("target_node_neg"))
+    valid_edge_neg = _optional_edge_neg_raw(valid.get("edge_neg"))
+    test_edge_neg = _optional_edge_neg_raw(test.get("edge_neg"))
 
     return OGBSplitData(
         dataset_name=canonical_name,
@@ -120,8 +150,16 @@ def _load_manual_split(
         train_edges=_positive_edges_from_split(train),
         valid_edges=_positive_edges_from_split(valid),
         test_edges=_positive_edges_from_split(test),
-        valid_neg_edges=_optional_edge_array(valid.get("edge_neg")),
-        test_neg_edges=_optional_edge_array(test.get("edge_neg")),
+        train_edge_weight=_optional_float_vector_from_keys(train, ("weight", "edge_weight")),
+        train_edge_year=_optional_int_vector_from_keys(train, ("year", "edge_year")),
+        valid_edge_weight=_optional_float_vector_from_keys(valid, ("weight", "edge_weight")),
+        valid_edge_year=_optional_int_vector_from_keys(valid, ("year", "edge_year")),
+        test_edge_weight=_optional_float_vector_from_keys(test, ("weight", "edge_weight")),
+        test_edge_year=_optional_int_vector_from_keys(test, ("year", "edge_year")),
+        valid_edge_neg=valid_edge_neg,
+        test_edge_neg=test_edge_neg,
+        valid_neg_edges=_flatten_edge_neg_array(valid_edge_neg),
+        test_neg_edges=_flatten_edge_neg_array(test_edge_neg),
         valid_source_nodes=valid_source_nodes,
         valid_target_nodes=valid_target_nodes,
         test_source_nodes=test_source_nodes,
@@ -203,10 +241,77 @@ def _optional_edge_array(value: Any) -> np.ndarray | None:
     return normalize_edge_array(value)
 
 
+def _optional_edge_neg_raw(value: Any) -> np.ndarray | None:
+    """Preserve an OGB edge_neg array as 2D shared-pool or 3D row-wise data."""
+
+    if value is None:
+        return None
+    array = _as_numpy(value)
+    if array.ndim == 2:
+        if array.size == 0:
+            return np.empty((0, 2), dtype=np.int64)
+        return normalize_edge_array(array)
+    if array.ndim == 3 and array.shape[-1] == 2:
+        return array.astype(np.int64, copy=False)
+    raise ValueError(
+        "edge_neg must have shape [num_neg, 2] or [num_pos, num_neg, 2], "
+        f"got {array.shape}"
+    )
+
+
+def _optional_flat_edge_neg(value: Any) -> np.ndarray | None:
+    return _flatten_edge_neg_array(_optional_edge_neg_raw(value))
+
+
+def _flatten_edge_neg_array(edge_neg: np.ndarray | None) -> np.ndarray | None:
+    if edge_neg is None:
+        return None
+    if edge_neg.ndim == 2:
+        return normalize_edge_array(edge_neg)
+    if edge_neg.ndim == 3 and edge_neg.shape[-1] == 2:
+        return edge_neg.reshape(-1, 2).astype(np.int64, copy=False)
+    raise ValueError(
+        "edge_neg must have shape [num_neg, 2] or [num_pos, num_neg, 2], "
+        f"got {edge_neg.shape}"
+    )
+
+
 def _optional_vector(value: Any) -> np.ndarray | None:
     if value is None:
         return None
     return _as_numpy(value).reshape(-1).astype(np.int64, copy=False)
+
+
+def _optional_float_vector(value: Any) -> np.ndarray | None:
+    if value is None:
+        return None
+    return _as_numpy(value).reshape(-1).astype(float, copy=False)
+
+
+def _optional_int_vector(value: Any) -> np.ndarray | None:
+    if value is None:
+        return None
+    return _as_numpy(value).reshape(-1).astype(np.int64, copy=False)
+
+
+def _optional_float_vector_from_keys(
+    split: dict[str, Any],
+    keys: tuple[str, ...],
+) -> np.ndarray | None:
+    for key in keys:
+        if key in split and split[key] is not None:
+            return _optional_float_vector(split[key])
+    return None
+
+
+def _optional_int_vector_from_keys(
+    split: dict[str, Any],
+    keys: tuple[str, ...],
+) -> np.ndarray | None:
+    for key in keys:
+        if key in split and split[key] is not None:
+            return _optional_int_vector(split[key])
+    return None
 
 
 def _optional_matrix(value: Any) -> np.ndarray | None:
@@ -240,6 +345,14 @@ def _replace_notes(split: OGBSplitData, notes: str) -> OGBSplitData:
         train_edges=split.train_edges,
         valid_edges=split.valid_edges,
         test_edges=split.test_edges,
+        train_edge_weight=split.train_edge_weight,
+        train_edge_year=split.train_edge_year,
+        valid_edge_weight=split.valid_edge_weight,
+        valid_edge_year=split.valid_edge_year,
+        test_edge_weight=split.test_edge_weight,
+        test_edge_year=split.test_edge_year,
+        valid_edge_neg=split.valid_edge_neg,
+        test_edge_neg=split.test_edge_neg,
         valid_neg_edges=split.valid_neg_edges,
         test_neg_edges=split.test_neg_edges,
         valid_source_nodes=split.valid_source_nodes,

@@ -25,10 +25,20 @@ Supported scoring methods:
 - Adamic-Adar index
 - Resource Allocation index
 - Preferential Attachment
+- Common neighbors
+- Weighted common neighbors
+- Weighted Resource Allocation
+- Weighted Adamic-Adar
+- Time-decay common neighbors
+- Time-decay Resource Allocation
 
 All methods require explicit `candidate_pairs`. The implementation does not
 call NetworkX link-prediction APIs with `ebunch=None`, because that would
 enumerate graph-wide non-edges and is not viable for OGB-scale graphs.
+
+The weighted/time-aware methods are intended first for `ogbl_collab`. They use
+official split edge `weight` and `year` when present, and they degrade to
+unweighted or weighted topology scores when those attributes are missing.
 
 ## Visible Graph Boundary
 
@@ -80,7 +90,8 @@ baseline, not as a directed model.
 ## Metrics
 
 Manual numpy metrics are implemented in `src/algorithms/evaluation.py` so the
-project can run without depending on an exact OGB `Evaluator` input format.
+legacy smoke path can run without depending on an exact OGB `Evaluator` input
+format.
 
 Dataset metric routing:
 
@@ -97,17 +108,28 @@ rank = 1 + number of negatives with score >= positive score
 MRR = mean(1 / rank)
 ```
 
-## Smoke vs Formal Evaluation
+## Legacy Smoke vs Official Evaluation
 
-Formal evaluation should use all official train edges and all official
-candidate negatives. That can be expensive in NetworkX, especially for
-`ogbl_ppa`.
+For `ogbl_collab`, formal leaderboard-aligned evaluation should use
+`scripts/eval_ogb_official.py`. It calls
+`ogb.linkproppred.Evaluator(name="ogbl-collab")`, preserves raw `edge_neg`
+shape, reports the negative layout, and writes Markdown plus CSV reports. See
+`graph_mining_docs/ogb_official_evaluation.md`.
 
 The smoke script is intentionally lighter. It limits positive candidates,
 negative candidates per positive, and by default limits train graph
 construction to a prefix of official `train_edges`. This checks wiring,
 candidate shapes, metric routing, and no-crash behavior without pretending to
 be the final benchmark.
+
+The default `--limit-pos 100` is a smoke-test value, not the full valid/test
+split. Use `--full-positive-split` when you intentionally want all positives
+from the current split; it ignores `--limit-pos`. For `ogbl-collab` and other
+splits with a global official negative pool, `--limit-neg-per-pos` is a budget
+multiplier, and the actual negative count is capped by the available official
+negative pool. The smoke output prints `requested_neg`, `available_neg`,
+`used_neg`, and `neg_truncated`; report actual `pos/neg` counts when comparing
+runs.
 
 Run the smoke script:
 
@@ -119,6 +141,21 @@ python scripts/smoke_link_prediction.py \
   --limit-neg-per-pos 100
 ```
 
+The default smoke methods remain the original four NetworkX baselines. To run
+all supported methods for the current collab-focused experiment:
+
+```bash
+python scripts/smoke_link_prediction.py \
+  --raw-root data/raw \
+  --datasets ogbl_collab \
+  --split valid \
+  --limit-pos 1000 \
+  --limit-neg-per-pos 100 \
+  --full-train-graph \
+  --methods all \
+  --decay 0.8
+```
+
 To use the full official train graph for a local formal-style run, add:
 
 ```bash
@@ -127,3 +164,22 @@ To use the full official train graph for a local formal-style run, add:
 
 Do this intentionally; full NetworkX graph construction for large OGB splits
 can require substantial memory.
+
+To score all positives in the selected valid/test split, add:
+
+```bash
+--full-positive-split
+```
+
+For repeatable `ogbl-collab` experiments, use:
+
+```bash
+python scripts/run_collab_experiments.py \
+  --raw-root data/raw \
+  --split valid \
+  --output-dir reports/collab_experiments \
+  --full-train-graph
+```
+
+The runner writes `collab_experiments.csv`, `collab_experiments.md`, and
+`collab_best_summary.md` under the chosen output directory.
