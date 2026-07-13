@@ -1,0 +1,56 @@
+{
+  "test_name": "ogbl-collab数据完整性检查",
+  "started_at": "2026-07-13T03:19:49.966831+00:00",
+  "inputs": {
+    "raw_root": "data/raw",
+    "dataset": "ogbl_collab",
+    "split": "valid"
+  },
+  "checks": [
+    {
+      "name": "验证集正关系",
+      "actual": 60084,
+      "expected": 60084,
+      "passed": true
+    },
+    {
+      "name": "验证集候选负关系",
+      "actual": 100000,
+      "expected": 100000,
+      "passed": true
+    },
+    {
+      "name": "关系结构",
+      "actual": {
+        "positive_count": 60084,
+        "negative_count": 100000,
+        "positive_shape": [
+          60084,
+          2
+        ],
+        "negative_shape": [
+          100000,
+          2
+        ]
+      },
+      "expected": "每条关系两个节点",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "actual": {
+    "positive_count": 60084,
+    "negative_count": 100000,
+    "positive_shape": [
+      60084,
+      2
+    ],
+    "negative_shape": [
+      100000,
+      2
+    ]
+  },
+  "status": "PASS",
+  "conclusion": "通过",
+  "ended_at": "2026-07-13T03:19:51.643538+00:00"
+}

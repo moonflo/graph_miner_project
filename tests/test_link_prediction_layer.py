@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 import io
+import json
 import math
 from pathlib import Path
+import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -11,7 +13,12 @@ from unittest.mock import patch
 import networkx as nx
 import numpy as np
 
-from scripts import eval_ogb_official, run_collab_experiments, smoke_link_prediction
+from scripts import (
+    eval_ogb_official,
+    run_collab_experiments,
+    run_final_link_prediction_report,
+    smoke_link_prediction,
+)
 from src.algorithms.evaluation import (
     evaluate_ogb_style,
     hits_at_k_from_scores,
@@ -538,6 +545,116 @@ class CollabExperimentRunnerTest(unittest.TestCase):
                 "Best method by Hits@50",
                 paths["summary"].read_text(encoding="utf-8"),
             )
+
+
+class FinalLinkPredictionReportTest(unittest.TestCase):
+    def test_parse_application_output_captures_metrics_and_fallback_ratio(self) -> None:
+        spec = run_final_link_prediction_report.ExperimentSpec(
+            name="experiment_3_local_2hop_candidate_pool",
+            label="Experiment 3",
+            eval_mode="application_candidate",
+            limit_pos=10000,
+            limit_neg_per_pos=50,
+            methods=("adamic_adar", "resource_allocation"),
+            raw_output_name="experiment_3_local_2hop_candidate_pool.txt",
+            application_neg_sampling="source_fixed_2hop",
+            tie_policy="average",
+            seed=42,
+        )
+        output = """
+## ogbl_collab
+- effective_pos: 10,000
+- skipped_pos: 0
+- fallback_random_negative_ratio: 0.123456
+- resource_allocation: Hits@1=0.401200, Hits@5=0.483600, Hits@10=0.527700, Hits@20=0.574900, Hits@50=0.701300, MRR=0.452193, MeanRank=21.320200, PosZeroRate=0.356000, NegZeroRate=0.065586, AvgTiesWithPos=2.964200, AvgGreaterThanPos=18.838100 graph=235,868 nodes/1,285,465 edges weight=yes year=yes max_train_year=2017 decay=0.9 topology_edges=1,285,465
+Completed successfully.
+"""
+
+        experiment = run_final_link_prediction_report.parse_experiment_output(spec, output)
+
+        self.assertEqual(experiment["status"], "success")
+        self.assertAlmostEqual(experiment["fallback_random_negative_ratio"], 0.123456)
+        self.assertEqual(experiment["effective_pos"], 10000)
+        self.assertEqual(experiment["skipped_pos"], 0)
+        self.assertAlmostEqual(
+            experiment["results"]["resource_allocation"]["hits@50"],
+            0.701300,
+        )
+        self.assertEqual(experiment["settings"]["candidate_size"], 51)
+
+    def test_runner_writes_final_reports_with_mocked_subprocess(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            args = run_final_link_prediction_report.parse_args(
+                [
+                    "--output-dir",
+                    str(Path(temp_dir) / "final"),
+                    "--skip-legacy",
+                    "--main-limit-pos",
+                    "10",
+                    "--random-limit-pos",
+                    "5",
+                ]
+            )
+            fake_output = """
+- effective_pos: 5
+- skipped_pos: 0
+- adamic_adar: Hits@1=0.400000, Hits@5=0.500000, Hits@10=0.550000, Hits@20=0.600000, Hits@50=0.700000, MRR=0.450000, MeanRank=20.000000, PosZeroRate=0.300000, NegZeroRate=0.100000, AvgTiesWithPos=1.000000, AvgGreaterThanPos=18.000000 graph=10 nodes/20 edges weight=yes year=yes max_train_year=2019 decay=0.9 topology_edges=20
+- resource_allocation: Hits@1=0.410000, Hits@5=0.510000, Hits@10=0.560000, Hits@20=0.610000, Hits@50=0.710000, MRR=0.455000, MeanRank=19.000000, PosZeroRate=0.290000, NegZeroRate=0.090000, AvgTiesWithPos=0.900000, AvgGreaterThanPos=17.000000 graph=10 nodes/20 edges weight=yes year=yes max_train_year=2019 decay=0.9 topology_edges=20
+Completed successfully.
+"""
+
+            completed = subprocess.CompletedProcess(
+                args=["python"],
+                returncode=0,
+                stdout=fake_output,
+                stderr="",
+            )
+            with patch("scripts.run_final_link_prediction_report.subprocess.run", return_value=completed):
+                experiments = run_final_link_prediction_report.run_experiments(
+                    args,
+                    args.output_dir / "raw_outputs",
+                )
+                payload = run_final_link_prediction_report.build_json_payload(
+                    args,
+                    experiments,
+                    "2026-07-08T00:00:00+00:00",
+                )
+                rows = run_final_link_prediction_report.summary_rows(experiments)
+                args.output_dir.mkdir(parents=True, exist_ok=True)
+                run_final_link_prediction_report.write_csv(
+                    args.output_dir / "final_link_prediction_summary.csv",
+                    rows,
+                )
+                (args.output_dir / "final_link_prediction_results.json").write_text(
+                    json.dumps(payload, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                (args.output_dir / "final_link_prediction_report.md").write_text(
+                    run_final_link_prediction_report.markdown_report(
+                        args,
+                        experiments,
+                        "2026-07-08T00:00:00+00:00",
+                    ),
+                    encoding="utf-8",
+                )
+
+            self.assertEqual(len(experiments), 2)
+            self.assertTrue((args.output_dir / "final_link_prediction_report.md").is_file())
+            self.assertTrue((args.output_dir / "final_link_prediction_results.json").is_file())
+            self.assertTrue((args.output_dir / "final_link_prediction_summary.csv").is_file())
+            self.assertTrue(
+                (
+                    args.output_dir
+                    / "raw_outputs"
+                    / "experiment_2_random_candidate_pool.txt"
+                ).is_file()
+            )
+            self.assertIn(
+                "Final Link Prediction Experiment Summary",
+                (args.output_dir / "final_link_prediction_report.md").read_text(encoding="utf-8"),
+            )
+            self.assertIn("status", (args.output_dir / "final_link_prediction_summary.csv").read_text(encoding="utf-8"))
+            self.assertIn("\"settings\"", json.dumps(payload, ensure_ascii=False))
 
 
 class OfficialEvalCliTest(unittest.TestCase):

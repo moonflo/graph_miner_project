@@ -1,0 +1,22 @@
+# Classical Link Prediction Smoke Test
+Evaluation mode: candidate-limited legacy smoke test
+Not directly comparable with OGB leaderboard.
+
+- raw_root: `data/raw`
+- split: valid
+- positive_split: limited, limit_pos=100,000 (not full split)
+- limit_neg_per_pos: 100
+- limit_train_edges: full
+- decay: 0.9
+- datasets: ogbl_collab
+- methods: jaccard, adamic_adar, resource_allocation, preferential_attachment, time_decay_common_neighbors, time_decay_resource_allocation
+
+## ogbl_collab
+- jaccard: pos=60,084 neg=100,000 Hits@50=0.593769 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632 positive_split=limited requested_neg=6,008,400 available_neg=100,000 used_neg=100,000 neg_truncated=yes
+- adamic_adar: pos=60,084 neg=100,000 Hits@50=0.633729 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632 positive_split=limited requested_neg=6,008,400 available_neg=100,000 used_neg=100,000 neg_truncated=yes
+- resource_allocation: pos=60,084 neg=100,000 Hits@50=0.633530 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632 positive_split=limited requested_neg=6,008,400 available_neg=100,000 used_neg=100,000 neg_truncated=yes
+- preferential_attachment: pos=60,084 neg=100,000 Hits@50=0.107816 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632 positive_split=limited requested_neg=6,008,400 available_neg=100,000 used_neg=100,000 neg_truncated=yes
+- time_decay_common_neighbors: pos=60,084 neg=100,000 Hits@50=0.647394 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632 positive_split=limited requested_neg=6,008,400 available_neg=100,000 used_neg=100,000 neg_truncated=yes
+- time_decay_resource_allocation: pos=60,084 neg=100,000 Hits@50=0.643849 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632 positive_split=limited requested_neg=6,008,400 available_neg=100,000 used_neg=100,000 neg_truncated=yes
+
+Completed successfully.

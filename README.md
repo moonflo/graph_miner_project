@@ -219,6 +219,25 @@ python -m utils.download_datasets ogbl-ppa
 python -m utils.download_datasets ogbl-citation2
 ```
 
+## Acceptance test for testers
+
+After the local `ogbl_collab` cache is available, run the four independent
+checks in order:
+
+```bash
+python scripts/test_01_environment.py
+python scripts/test_02_dataset.py
+python scripts/test_03_graph.py
+python scripts/test_04_link_prediction.py
+```
+
+All scripts support `--help`, `--raw-root`, and `--output-dir`. Results are
+written to `output/acceptance_test/`. The final test deliberately uses the
+existing legacy global negative-pool protocol: all valid positives share the
+official 100,000-negative pool, and `--limit-neg-per-pos 100` is only the
+negative budget multiplier. It is not a 101-candidate-per-positive test and
+does not use `application_candidate` mode.
+
 Preprocess raw datasets into graph-construction inputs:
 
 ```bash

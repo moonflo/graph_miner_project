@@ -1,0 +1,85 @@
+{
+  "test_name": "图拓扑学习关系识别准确率测试",
+  "started_at": "2026-07-13T03:25:24.064270+00:00",
+  "inputs": {
+    "raw_root": "data/raw",
+    "dataset": "ogbl_collab",
+    "split": "valid",
+    "method": "time_decay_common_neighbors",
+    "decay": 0.8,
+    "full_positive_split": true,
+    "limit_neg_per_pos": 100,
+    "limit_train_edges": null
+  },
+  "checks": [
+    {
+      "name": "正关系数量",
+      "actual": 60084,
+      "expected": 60084,
+      "passed": true
+    },
+    {
+      "name": "可用负关系数量",
+      "actual": 100000,
+      "expected": 100000,
+      "passed": true
+    },
+    {
+      "name": "实际使用负关系数量",
+      "actual": 100000,
+      "expected": 100000,
+      "passed": true
+    },
+    {
+      "name": "图节点数量",
+      "actual": 235868,
+      "expected": 235868,
+      "passed": true
+    },
+    {
+      "name": "图关系数量",
+      "actual": 967632,
+      "expected": 967632,
+      "passed": true
+    },
+    {
+      "name": "Hits@50",
+      "actual": 0.6467778443512416,
+      "expected": 0.6,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "evaluation_mode": "legacy_global_negative_pool",
+  "positive_count": 60084,
+  "requested_negative_count": 6008400,
+  "available_negative_count": 100000,
+  "used_negative_count": 100000,
+  "negative_truncated": true,
+  "graph": {
+    "dataset_name": "ogbl_collab",
+    "graph_source": "ogb_train",
+    "num_nodes": 235868,
+    "num_edges": 967632,
+    "include_isolated_nodes": true,
+    "has_edge_weight": true,
+    "has_edge_year": true,
+    "max_train_year": 2017,
+    "decay": 0.8,
+    "topology_num_nodes": 235868,
+    "topology_num_edges": 967632,
+    "topology_projection": "simple_undirected",
+    "projection_note": "",
+    "citation2_topology_note": ""
+  },
+  "metric": {
+    "name": "Hits@50",
+    "value": 0.6467778443512416,
+    "threshold": 0.6,
+    "passed": true
+  },
+  "negative_pool_note": "本测试采用legacy全局负样本池评估方式。验证集正关系分别与同一个包含100,000条负关系的全局负样本池比较。--limit-neg-per-pos 100是负样本预算乘数，实际数量受官方可用负样本限制。本测试不是为每条正关系分别生成100条负关系，也不是在101个候选关系中计算Hits@50。",
+  "status": "PASS",
+  "conclusion": "通过",
+  "ended_at": "2026-07-13T03:25:59.441013+00:00"
+}

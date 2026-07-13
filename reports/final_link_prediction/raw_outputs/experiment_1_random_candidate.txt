@@ -1,0 +1,35 @@
+# Classical Link Prediction Smoke Test
+Evaluation mode: application_candidate
+Not directly comparable with OGB leaderboard.
+This evaluates per-positive candidate-pool ranking.
+
+- raw_root: `data/raw`
+- split: valid
+- limit_pos: 1,000
+- limit_neg_per_pos: 50
+- application_neg_sampling: source_fixed_random
+- tie_policy: average
+- seed: 42
+- candidate_size = 1 + limit_neg_per_pos: 51
+- limit_train_edges: full
+- decay: 0.9
+- datasets: ogbl_collab
+- methods: jaccard, adamic_adar, resource_allocation, preferential_attachment
+- metrics: Hits@1, Hits@5, Hits@10, Hits@20, Hits@50, MRR, MeanRank
+
+## ogbl_collab
+- split: valid
+- limit_pos: 1,000
+- limit_neg_per_pos: 50
+- application_neg_sampling: source_fixed_random
+- tie_policy: average
+- seed: 42
+- effective_pos: 1,000
+- skipped_pos: 0
+- candidate_size = 1 + limit_neg_per_pos: 51
+- jaccard: Hits@1=0.585000, Hits@5=0.597000, Hits@10=0.597000, Hits@20=0.597000, Hits@50=1.000000, MRR=0.606206, MeanRank=11.119500, PosZeroRate=0.403000, NegZeroRate=0.997060, AvgTiesWithPos=20.089000, AvgGreaterThanPos=0.075000 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632
+- adamic_adar: Hits@1=0.588000, Hits@5=0.597000, Hits@10=0.597000, Hits@20=0.597000, Hits@50=1.000000, MRR=0.607456, MeanRank=11.118500, PosZeroRate=0.403000, NegZeroRate=0.997060, AvgTiesWithPos=20.089000, AvgGreaterThanPos=0.074000 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632
+- resource_allocation: Hits@1=0.588000, Hits@5=0.597000, Hits@10=0.597000, Hits@20=0.597000, Hits@50=1.000000, MRR=0.607456, MeanRank=11.118500, PosZeroRate=0.403000, NegZeroRate=0.997060, AvgTiesWithPos=20.089000, AvgGreaterThanPos=0.074000 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632
+- preferential_attachment: Hits@1=0.117000, Hits@5=0.385000, Hits@10=0.525000, Hits@20=0.704000, Hits@50=0.996000, MRR=0.251027, MeanRank=14.859500, PosZeroRate=0.000000, NegZeroRate=0.000000, AvgTiesWithPos=2.333000, AvgGreaterThanPos=12.693000 graph=235,868 nodes/967,632 edges weight=yes year=yes max_train_year=2,017 decay=0.9 topology_edges=967,632
+
+Completed successfully.

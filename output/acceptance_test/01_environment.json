@@ -1,0 +1,65 @@
+{
+  "test_name": "环境部署与运行条件检查",
+  "started_at": "2026-07-13T03:19:01.144438+00:00",
+  "inputs": {
+    "raw_root": "data/raw",
+    "output_dir": "/home/user/projects/graph_miner_project/output/acceptance_test"
+  },
+  "checks": [
+    {
+      "name": "Python版本",
+      "actual": "3.10.0 (default, Mar  3 2022, 09:58:08) [GCC 7.5.0]",
+      "expected": ">=3.10",
+      "passed": true
+    },
+    {
+      "name": "项目及第三方依赖导入",
+      "actual": {
+        "networkx": "3.4.2",
+        "ogb": "1.3.6",
+        "numpy": "2.2.6",
+        "scipy": "1.15.3",
+        "torch": "2.12.1+cu130",
+        "src.algorithms.evaluation": "imported",
+        "src.algorithms.link_prediction": "imported",
+        "src.algorithms.scoring": "imported",
+        "src.graph.graph_factory": "imported",
+        "src.graph.ogb_split_loader": "imported"
+      },
+      "expected": "全部成功",
+      "passed": true
+    },
+    {
+      "name": "输出目录可写且临时文件可创建删除",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "environment": {
+    "python": "3.10.0 (default, Mar  3 2022, 09:58:08) [GCC 7.5.0]",
+    "executable": "/home/user/miniconda3/envs/graph-miner/bin/python",
+    "cwd": "/home/user/projects/graph_miner_project",
+    "repository_root": "/home/user/projects/graph_miner_project",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "cpu_count": 16,
+    "disk_total_bytes": 1081101176832,
+    "disk_free_bytes": 946770628608
+  },
+  "imports": {
+    "networkx": "3.4.2",
+    "ogb": "1.3.6",
+    "numpy": "2.2.6",
+    "scipy": "1.15.3",
+    "torch": "2.12.1+cu130",
+    "src.algorithms.evaluation": "imported",
+    "src.algorithms.link_prediction": "imported",
+    "src.algorithms.scoring": "imported",
+    "src.graph.graph_factory": "imported",
+    "src.graph.ogb_split_loader": "imported"
+  },
+  "status": "PASS",
+  "conclusion": "通过",
+  "ended_at": "2026-07-13T03:19:05.293359+00:00"
+}
